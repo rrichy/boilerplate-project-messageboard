@@ -36,7 +36,9 @@ module.exports = function (app) {
         THREAD.create({ text, delete_password: hash}, (err, data) => {
           if(err) return console.log(err);
           
+          // const { _id, text, created_on, bumped_on, replies } = data;
           console.log('New thread posted: ', data._id);
+          // res.json({ _id, text, created_on, bumped_on, replies });
           return res.redirect(`/b/${board}/`);
         });
       });
@@ -75,7 +77,6 @@ module.exports = function (app) {
 
       THREAD.findById(thread_id, (err, data) => {
         if(err) return console.log(err);
-        console.log('password equal? ', bcrypt.compareSync(delete_password, data.delete_password));
         if(data && bcrypt.compareSync(delete_password, data.delete_password)) {
           THREAD.findByIdAndDelete(thread_id, (err, d) => {
             if(err) return console.log(err);
@@ -87,7 +88,16 @@ module.exports = function (app) {
       });
     })
     .put((req, res) => {
-      
+      const { board } = req.params;
+      const { thread_id, report_id } = req.body;
+
+      const THREAD = mongoose.model(board, THREAD_SCHEMA);
+
+      THREAD.findByIdAndUpdate(thread_id || report_id, { $set: { reported: true }}, (err, data) => {
+        if(err) return console.log(err);
+        if(data) return res.send('successfully reported');
+        return res.send('failed to report');
+      })
     });
       
   app.route('/api/replies/:board')
@@ -159,7 +169,7 @@ module.exports = function (app) {
             thread.replies[delIndex].text = '[deleted]'; 
             thread.save((err, data) => {
               if(err) return console.log(err);
-              res.send('success');
+              return res.send('success');
             });
           }
           else return res.send('incorrect password');
@@ -168,7 +178,26 @@ module.exports = function (app) {
       });
     })
     .put((req, res) => {
-      
+      const { board } = req.params;
+      const { thread_id, reply_id } = req.body || req.query;
+      console.log(board, thread_id, reply_id);
+      const THREAD = mongoose.model(board, THREAD_SCHEMA);
+
+      THREAD.findById(thread_id, (err, thread) => {
+        if(err) return console.log(err);
+        if(thread) {
+          let reportIndex = thread.replies.findIndex(reply => reply._id == reply_id);
+          if(reportIndex >= 0) {
+            thread.replies[reportIndex].reported = true;
+            thread.save((err, data) => {
+              if(err) return console.log(err);
+              return res.send('successfully reported');
+            });
+          }
+          else return res.send('failed to report');
+        }
+        else return res.send('failed to report');
+      });
     });
 
 };
